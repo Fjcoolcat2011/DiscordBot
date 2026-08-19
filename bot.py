@@ -11,21 +11,15 @@ from dotenv import load_dotenv
 
 
 # ============================================================
-# Environment configuration
+# Configuration
 # ============================================================
 
 load_dotenv()
 
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "").strip()
-
-GUILD_ID_RAW = os.getenv("GUILD_ID", "").strip()
-TICKET_CATEGORY_ID_RAW = os.getenv("TICKET_CATEGORY_ID", "").strip()
-STAFF_ROLE_ID_RAW = os.getenv("STAFF_ROLE_ID", "").strip()
-SERVER_INFO_CHANNEL_ID_RAW = os.getenv("SERVER_INFO_CHANNEL_ID", "").strip()
+DISCORD_TOKEN = os.getenv("MTUzOTM5ODk4NjgwMzQ0OTg1Ng.GWmNqk.09N63dRw15TJjrZwmpJqb8ru_mFehuTlcxR8ec", "").strip()
 
 
 def parse_id(value: str) -> Optional[int]:
-    """Convert an environment variable to an integer Discord ID."""
     if not value:
         return None
 
@@ -35,10 +29,16 @@ def parse_id(value: str) -> Optional[int]:
         return None
 
 
-GUILD_ID = parse_id(GUILD_ID_RAW)
-TICKET_CATEGORY_ID = parse_id(TICKET_CATEGORY_ID_RAW)
-STAFF_ROLE_ID = parse_id(STAFF_ROLE_ID_RAW)
-SERVER_INFO_CHANNEL_ID = parse_id(SERVER_INFO_CHANNEL_ID_RAW)
+GUILD_ID = parse_id(os.getenv("1538069562522603571", "").strip())
+TICKET_CATEGORY_ID = parse_id(
+    os.getenv("1539430707783274628", "").strip()
+)
+STAFF_ROLE_ID = parse_id(
+    os.getenv("1538069562631921681", "").strip()
+)
+SERVER_INFO_CHANNEL_ID = parse_id(
+    os.getenv("1538069563717976085", "").strip()
+)
 
 
 # ============================================================
@@ -54,7 +54,7 @@ logger = logging.getLogger("discord-ticket-bot")
 
 
 # ============================================================
-# Bot configuration
+# Intents / Bot
 # ============================================================
 
 intents = discord.Intents.default()
@@ -62,27 +62,22 @@ intents.guilds = True
 
 
 class TicketBot(commands.Bot):
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(
             command_prefix="!",
             intents=intents,
             reconnect=True,
         )
 
-    async def setup_hook(self) -> None:
-        """
-        Runs once when the bot is preparing to connect.
-
-        The ticket dropdown is registered as a persistent view so
-        existing dropdown panels continue working after a restart.
-        """
+    async def setup_hook(self):
+        # Register persistent dropdown.
         self.add_view(TicketPanelView())
 
         try:
             if GUILD_ID:
                 guild = discord.Object(id=GUILD_ID)
 
-                # Copy the commands to the development guild.
+                # Copy global commands to the development guild.
                 self.tree.copy_global_to(guild=guild)
 
                 synced = await self.tree.sync(guild=guild)
@@ -104,15 +99,16 @@ class TicketBot(commands.Bot):
 
         except discord.HTTPException as exc:
             logger.error(
-                "Discord API error while synchronizing slash commands: %s",
+                "Discord API error during slash-command synchronization: %s",
                 exc,
             )
+
         except Exception:
             logger.exception(
-                "Unexpected error while synchronizing slash commands."
+                "Unexpected slash-command synchronization error."
             )
 
-    async def on_ready(self) -> None:
+    async def on_ready(self):
         if self.user is None:
             return
 
@@ -126,37 +122,34 @@ bot = TicketBot()
 
 
 # ============================================================
-# Utility functions
+# Helpers
 # ============================================================
 
 def clean_username(username: str) -> str:
     """
-    Convert a Discord username into a safe channel-name component.
+    Convert a Discord username into a safe Discord channel-name
+    component.
     """
     username = username.lower()
 
-    # Keep letters, numbers, hyphens and underscores.
-    username = re.sub(r"[^a-z0-9_-]", "-", username)
+    username = re.sub(
+        r"[^a-z0-9_-]",
+        "-",
+        username,
+    )
 
-    # Collapse repeated hyphens.
-    username = re.sub(r"-+", "-", username)
+    username = re.sub(
+        r"-+",
+        "-",
+        username,
+    )
 
     username = username.strip("-_")
 
     if not username:
         username = "user"
 
-    # Discord channel names have a practical 100-character limit.
     return username[:70]
-
-
-def ticket_topic(user_id: int, ticket_type: str) -> str:
-    """
-    Topic format used to identify ticket ownership and type.
-
-    This avoids requiring a database or additional file.
-    """
-    return f"ticket_owner={user_id};ticket_type={ticket_type}"
 
 
 def get_ticket_type_label(ticket_type: str) -> str:
@@ -166,7 +159,38 @@ def get_ticket_type_label(ticket_type: str) -> str:
         "report": "Player Report",
     }
 
-    return labels.get(ticket_type, ticket_type.title())
+    return labels.get(
+        ticket_type,
+        ticket_type.title(),
+    )
+
+
+def make_error_embed(
+    title: str,
+    description: str,
+) -> discord.Embed:
+    embed = discord.Embed(
+        title=title,
+        description=description,
+        color=discord.Color.red(),
+        timestamp=datetime.now(timezone.utc),
+    )
+
+    embed.set_footer(
+        text="Powered by Python Discord Bot"
+    )
+
+    return embed
+
+
+def make_ticket_topic(
+    user_id: int,
+    ticket_type: str,
+) -> str:
+    return (
+        f"ticket_owner={user_id};"
+        f"ticket_type={ticket_type}"
+    )
 
 
 async def find_existing_ticket(
@@ -174,46 +198,43 @@ async def find_existing_ticket(
     user_id: int,
 ) -> Optional[discord.TextChannel]:
     """
-    Search the configured ticket category for an existing ticket
-    belonging to the user.
+    Search the ticket category for an existing ticket belonging
+    to this user.
 
-    No database is required because ownership is stored in the
-    channel topic.
+    No database is required because ticket ownership is stored
+    in the channel topic.
     """
     if TICKET_CATEGORY_ID is None:
         return None
 
-    category = guild.get_channel(TICKET_CATEGORY_ID)
+    category = guild.get_channel(
+        TICKET_CATEGORY_ID
+    )
 
-    if not isinstance(category, discord.CategoryChannel):
+    if not isinstance(
+        category,
+        discord.CategoryChannel,
+    ):
         return None
 
     owner_marker = f"ticket_owner={user_id};"
 
     for channel in category.text_channels:
-        if channel.topic and owner_marker in channel.topic:
+        if (
+            channel.topic
+            and owner_marker in channel.topic
+        ):
             return channel
 
     return None
 
 
-def make_error_embed(title: str, description: str) -> discord.Embed:
-    embed = discord.Embed(
-        title=title,
-        description=description,
-        color=discord.Color.red(),
-        timestamp=datetime.now(timezone.utc),
-    )
-    embed.set_footer(text="Python Discord Bot")
-    return embed
-
-
 # ============================================================
-# Ticket dropdown
+# Ticket Dropdown
 # ============================================================
 
 class TicketSelect(discord.ui.Select):
-    def __init__(self) -> None:
+    def __init__(self):
         options = [
             discord.SelectOption(
                 label="General Support",
@@ -243,7 +264,10 @@ class TicketSelect(discord.ui.Select):
             custom_id="support_ticket_select",
         )
 
-    async def callback(self, interaction: discord.Interaction) -> None:
+    async def callback(
+        self,
+        interaction: discord.Interaction,
+    ):
         if interaction.guild is None:
             await interaction.response.send_message(
                 embed=make_error_embed(
@@ -254,21 +278,23 @@ class TicketSelect(discord.ui.Select):
             )
             return
 
-        # Acknowledge immediately so Discord does not display
-        # "Interaction Failed" while the channel is being created.
-        await interaction.response.defer(ephemeral=True)
+        # Acknowledge the interaction immediately so Discord
+        # does not display "Interaction Failed".
+        await interaction.response.defer(
+            ephemeral=True
+        )
 
         ticket_type = self.values[0]
 
         try:
             await create_ticket(
-                interaction=interaction,
-                ticket_type=ticket_type,
+                interaction,
+                ticket_type,
             )
 
         except discord.Forbidden:
             logger.warning(
-                "Missing Discord permissions while creating a ticket "
+                "Missing permissions while creating ticket "
                 "for user %s in guild %s.",
                 interaction.user.id,
                 interaction.guild.id,
@@ -278,9 +304,9 @@ class TicketSelect(discord.ui.Select):
                 embed=make_error_embed(
                     "Permission Error",
                     (
-                        "I do not have enough permissions to create the "
-                        "ticket channel. Make sure the bot has **Manage "
-                        "Channels** permission."
+                        "I do not have enough permissions to create "
+                        "the ticket channel. Make sure the bot has "
+                        "**Manage Channels** permission."
                     ),
                 ),
                 ephemeral=True,
@@ -296,22 +322,24 @@ class TicketSelect(discord.ui.Select):
                 embed=make_error_embed(
                     "Discord API Error",
                     (
-                        "Discord returned an error while creating your "
-                        "ticket. Please try again in a moment."
+                        "Discord returned an error while creating "
+                        "your ticket. Please try again."
                     ),
                 ),
                 ephemeral=True,
             )
 
         except Exception:
-            logger.exception("Unexpected ticket creation error.")
+            logger.exception(
+                "Unexpected ticket creation error."
+            )
 
             await interaction.followup.send(
                 embed=make_error_embed(
                     "Ticket Creation Failed",
                     (
-                        "Something went wrong while creating your ticket. "
-                        "Please contact the staff team."
+                        "Something went wrong while creating your "
+                        "ticket. Please contact the staff team."
                     ),
                 ),
                 ephemeral=True,
@@ -320,39 +348,42 @@ class TicketSelect(discord.ui.Select):
 
 class TicketPanelView(discord.ui.View):
     """
-    Persistent ticket panel.
+    Persistent ticket dropdown.
 
-    timeout=None and a fixed custom_id allow the dropdown to continue
-    functioning after bot restarts.
+    timeout=None and a fixed custom_id allow the dropdown to
+    continue working after bot restarts.
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(timeout=None)
         self.add_item(TicketSelect())
 
 
 # ============================================================
-# Ticket creation
+# Ticket Creation
 # ============================================================
 
 async def create_ticket(
     interaction: discord.Interaction,
     ticket_type: str,
-) -> None:
+):
     guild = interaction.guild
 
     if guild is None:
         return
 
     # --------------------------------------------------------
-    # Configuration validation
+    # Configuration checks
     # --------------------------------------------------------
 
     if TICKET_CATEGORY_ID is None:
         await interaction.followup.send(
             embed=make_error_embed(
                 "Configuration Error",
-                "The `TICKET_CATEGORY_ID` environment variable is missing or invalid.",
+                (
+                    "The TICKET_CATEGORY_ID environment variable "
+                    "is missing or invalid."
+                ),
             ),
             ephemeral=True,
         )
@@ -362,28 +393,38 @@ async def create_ticket(
         await interaction.followup.send(
             embed=make_error_embed(
                 "Configuration Error",
-                "The `STAFF_ROLE_ID` environment variable is missing or invalid.",
-            ),
-            ephemeral=True,
-        )
-        return
-
-    category = guild.get_channel(TICKET_CATEGORY_ID)
-
-    if not isinstance(category, discord.CategoryChannel):
-        await interaction.followup.send(
-            embed=make_error_embed(
-                "Ticket Category Missing",
                 (
-                    "The configured ticket category could not be found. "
-                    "Please contact the server administrator."
+                    "The STAFF_ROLE_ID environment variable "
+                    "is missing or invalid."
                 ),
             ),
             ephemeral=True,
         )
         return
 
-    staff_role = guild.get_role(STAFF_ROLE_ID)
+    category = guild.get_channel(
+        TICKET_CATEGORY_ID
+    )
+
+    if not isinstance(
+        category,
+        discord.CategoryChannel,
+    ):
+        await interaction.followup.send(
+            embed=make_error_embed(
+                "Ticket Category Missing",
+                (
+                    "The configured ticket category could not "
+                    "be found. Please contact the server administrator."
+                ),
+            ),
+            ephemeral=True,
+        )
+        return
+
+    staff_role = guild.get_role(
+        STAFF_ROLE_ID
+    )
 
     if staff_role is None:
         await interaction.followup.send(
@@ -399,12 +440,12 @@ async def create_ticket(
         return
 
     # --------------------------------------------------------
-    # Duplicate ticket prevention
+    # Duplicate prevention
     # --------------------------------------------------------
 
     existing_ticket = await find_existing_ticket(
-        guild=guild,
-        user_id=interaction.user.id,
+        guild,
+        interaction.user.id,
     )
 
     if existing_ticket is not None:
@@ -414,8 +455,7 @@ async def create_ticket(
                 (
                     f"You already have an open ticket: "
                     f"{existing_ticket.mention}\n\n"
-                    "Please use your existing ticket instead of creating "
-                    "another one."
+                    "Please use your existing ticket instead."
                 ),
             ),
             ephemeral=True,
@@ -426,7 +466,9 @@ async def create_ticket(
     # Channel name
     # --------------------------------------------------------
 
-    username = clean_username(interaction.user.name)
+    username = clean_username(
+        interaction.user.name
+    )
 
     prefixes = {
         "general": "support",
@@ -434,11 +476,17 @@ async def create_ticket(
         "report": "report",
     }
 
-    prefix = prefixes.get(ticket_type, "ticket")
-    channel_name = f"{prefix}-{username}"[:100]
+    prefix = prefixes.get(
+        ticket_type,
+        "ticket",
+    )
+
+    channel_name = (
+        f"{prefix}-{username}"
+    )[:100]
 
     # --------------------------------------------------------
-    # Permission overwrites
+    # Permissions
     # --------------------------------------------------------
 
     everyone_role = guild.default_role
@@ -447,12 +495,14 @@ async def create_ticket(
         everyone_role: discord.PermissionOverwrite(
             view_channel=False,
         ),
+
         interaction.user: discord.PermissionOverwrite(
             view_channel=True,
             send_messages=True,
             read_message_history=True,
             attach_files=True,
         ),
+
         staff_role: discord.PermissionOverwrite(
             view_channel=True,
             send_messages=True,
@@ -463,33 +513,38 @@ async def create_ticket(
     }
 
     # --------------------------------------------------------
-    # Create channel
+    # Create ticket channel
     # --------------------------------------------------------
 
     channel = await guild.create_text_channel(
         name=channel_name,
         category=category,
         overwrites=overwrites,
-        topic=ticket_topic(
-            user_id=interaction.user.id,
-            ticket_type=ticket_type,
+        topic=make_ticket_topic(
+            interaction.user.id,
+            ticket_type,
         ),
-        reason=f"Support ticket created by {interaction.user}",
+        reason=(
+            f"Support ticket created by "
+            f"{interaction.user}"
+        ),
     )
 
     # --------------------------------------------------------
     # Welcome embed
     # --------------------------------------------------------
 
-    ticket_label = get_ticket_type_label(ticket_type)
+    ticket_label = get_ticket_type_label(
+        ticket_type
+    )
 
     welcome_embed = discord.Embed(
         title="Support Ticket Created",
         description=(
-            "Thank you for contacting the staff team. "
+            "Thank you for contacting the staff team.\n\n"
             "A staff member will respond shortly.\n\n"
-            "**Please provide as much relevant information as possible "
-            "so we can assist you quickly.**"
+            "Please provide as much relevant information "
+            "as possible so we can assist you quickly."
         ),
         color=discord.Color.cyan(),
         timestamp=datetime.now(timezone.utc),
@@ -513,7 +568,10 @@ async def create_ticket(
 
     try:
         await channel.send(
-            content=f"{interaction.user.mention} <@&{staff_role.id}>",
+            content=(
+                f"{interaction.user.mention} "
+                f"{staff_role.mention}"
+            ),
             embed=welcome_embed,
             allowed_mentions=discord.AllowedMentions(
                 users=True,
@@ -522,15 +580,14 @@ async def create_ticket(
         )
 
     except discord.HTTPException:
-        # The channel was created successfully, so do not report the
-        # entire ticket creation as a failure.
         logger.exception(
-            "Ticket channel %s was created, but the welcome message failed.",
+            "Ticket channel %s was created, but "
+            "the welcome message failed.",
             channel.id,
         )
 
     # --------------------------------------------------------
-    # Final interaction response
+    # Confirm ticket creation
     # --------------------------------------------------------
 
     success_embed = discord.Embed(
@@ -548,7 +605,7 @@ async def create_ticket(
     )
 
     logger.info(
-        "Created %s ticket #%s for user %s (%s) in guild %s.",
+        "Created %s ticket #%s for %s (%s) in guild %s.",
         ticket_label,
         channel.id,
         interaction.user,
@@ -565,7 +622,9 @@ async def create_ticket(
     name="setticketpanel",
     description="Post the support ticket dropdown panel",
 )
-async def setticketpanel(interaction: discord.Interaction) -> None:
+async def setticketpanel(
+    interaction: discord.Interaction,
+):
     if interaction.guild is None:
         await interaction.response.send_message(
             embed=make_error_embed(
@@ -579,8 +638,8 @@ async def setticketpanel(interaction: discord.Interaction) -> None:
     panel_embed = discord.Embed(
         title="Support Ticket Center",
         description=(
-            "Select a category from the dropdown menu below to open "
-            "a private support ticket with our staff team."
+            "Select a category from the dropdown menu below to "
+            "open a private support ticket with our staff team."
         ),
         color=discord.Color.cyan(),
     )
@@ -590,6 +649,12 @@ async def setticketpanel(interaction: discord.Interaction) -> None:
     )
 
     try:
+        if interaction.channel is None:
+            raise discord.HTTPException(
+                response=None,
+                message="Command channel is unavailable.",
+            )
+
         await interaction.channel.send(
             embed=panel_embed,
             view=TicketPanelView(),
@@ -598,7 +663,9 @@ async def setticketpanel(interaction: discord.Interaction) -> None:
         await interaction.response.send_message(
             embed=discord.Embed(
                 title="Ticket Panel Posted",
-                description="The support ticket panel has been posted.",
+                description=(
+                    "The support ticket panel has been posted."
+                ),
                 color=discord.Color.green(),
             ),
             ephemeral=True,
@@ -612,16 +679,17 @@ async def setticketpanel(interaction: discord.Interaction) -> None:
         )
 
     except discord.Forbidden:
-        await interaction.response.send_message(
-            embed=make_error_embed(
-                "Permission Error",
-                (
-                    "I cannot send messages in this channel. "
-                    "Please check my channel permissions."
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                embed=make_error_embed(
+                    "Permission Error",
+                    (
+                        "I cannot send messages in this channel. "
+                        "Please check my channel permissions."
+                    ),
                 ),
-            ),
-            ephemeral=True,
-        )
+                ephemeral=True,
+            )
 
     except discord.HTTPException as exc:
         logger.error(
@@ -629,16 +697,22 @@ async def setticketpanel(interaction: discord.Interaction) -> None:
             exc,
         )
 
-        await interaction.response.send_message(
-            embed=make_error_embed(
-                "Discord API Error",
-                "The ticket panel could not be posted. Please try again.",
-            ),
-            ephemeral=True,
-        )
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                embed=make_error_embed(
+                    "Discord API Error",
+                    (
+                        "The ticket panel could not be posted. "
+                        "Please try again."
+                    ),
+                ),
+                ephemeral=True,
+            )
 
     except Exception:
-        logger.exception("Unexpected /setticketpanel error.")
+        logger.exception(
+            "Unexpected /setticketpanel error."
+        )
 
         if not interaction.response.is_done():
             await interaction.response.send_message(
@@ -658,7 +732,9 @@ async def setticketpanel(interaction: discord.Interaction) -> None:
     name="serverinfo",
     description="Display information about the server",
 )
-async def serverinfo(interaction: discord.Interaction) -> None:
+async def serverinfo(
+    interaction: discord.Interaction,
+):
     if interaction.guild is None:
         await interaction.response.send_message(
             embed=make_error_embed(
@@ -674,8 +750,8 @@ async def serverinfo(interaction: discord.Interaction) -> None:
             embed=make_error_embed(
                 "Configuration Error",
                 (
-                    "The `SERVER_INFO_CHANNEL_ID` environment variable "
-                    "is missing or invalid."
+                    "The SERVER_INFO_CHANNEL_ID environment "
+                    "variable is missing or invalid."
                 ),
             ),
             ephemeral=True,
@@ -686,13 +762,16 @@ async def serverinfo(interaction: discord.Interaction) -> None:
         SERVER_INFO_CHANNEL_ID
     )
 
-    if not isinstance(target_channel, discord.TextChannel):
+    if not isinstance(
+        target_channel,
+        discord.TextChannel,
+    ):
         await interaction.response.send_message(
             embed=make_error_embed(
                 "Channel Missing",
                 (
-                    "The configured server information channel could not "
-                    "be found."
+                    "The configured server information channel "
+                    "could not be found."
                 ),
             ),
             ephemeral=True,
@@ -701,8 +780,13 @@ async def serverinfo(interaction: discord.Interaction) -> None:
 
     guild = interaction.guild
 
-    text_channel_count = len(guild.text_channels)
-    voice_channel_count = len(guild.voice_channels)
+    text_channel_count = len(
+        guild.text_channels
+    )
+
+    voice_channel_count = len(
+        guild.voice_channels
+    )
 
     owner_text = (
         guild.owner.mention
@@ -710,7 +794,9 @@ async def serverinfo(interaction: discord.Interaction) -> None:
         else f"User ID: {guild.owner_id}"
     )
 
-    created_timestamp = int(guild.created_at.timestamp())
+    created_timestamp = int(
+        guild.created_at.timestamp()
+    )
 
     info_embed = discord.Embed(
         title="Server Information",
@@ -765,7 +851,9 @@ async def serverinfo(interaction: discord.Interaction) -> None:
     )
 
     try:
-        await target_channel.send(embed=info_embed)
+        await target_channel.send(
+            embed=info_embed
+        )
 
         await interaction.response.send_message(
             embed=discord.Embed(
@@ -780,36 +868,41 @@ async def serverinfo(interaction: discord.Interaction) -> None:
         )
 
     except discord.Forbidden:
-        await interaction.response.send_message(
-            embed=make_error_embed(
-                "Permission Error",
-                (
-                    f"I cannot send messages in {target_channel.mention}. "
-                    "Please check my channel permissions."
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                embed=make_error_embed(
+                    "Permission Error",
+                    (
+                        f"I cannot send messages in "
+                        f"{target_channel.mention}. Please check "
+                        "my channel permissions."
+                    ),
                 ),
-            ),
-            ephemeral=True,
-        )
+                ephemeral=True,
+            )
 
     except discord.HTTPException as exc:
         logger.error(
-            "Discord API error while sending server information: %s",
+            "Discord API error while sending server info: %s",
             exc,
         )
 
-        await interaction.response.send_message(
-            embed=make_error_embed(
-                "Discord API Error",
-                (
-                    "Discord rejected the server information message. "
-                    "Please try again later."
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                embed=make_error_embed(
+                    "Discord API Error",
+                    (
+                        "Discord rejected the server information "
+                        "message. Please try again later."
+                    ),
                 ),
-            ),
-            ephemeral=True,
-        )
+                ephemeral=True,
+            )
 
     except Exception:
-        logger.exception("Unexpected /serverinfo error.")
+        logger.exception(
+            "Unexpected /serverinfo error."
+        )
 
         if not interaction.response.is_done():
             await interaction.response.send_message(
@@ -822,14 +915,14 @@ async def serverinfo(interaction: discord.Interaction) -> None:
 
 
 # ============================================================
-# Global application-command error handler
+# Slash-command error handling
 # ============================================================
 
 @bot.tree.error
 async def on_app_command_error(
     interaction: discord.Interaction,
     error: app_commands.AppCommandError,
-) -> None:
+):
     logger.error(
         "Application command error: %s",
         error,
@@ -837,40 +930,48 @@ async def on_app_command_error(
     )
 
     message = (
-        "An unexpected error occurred while processing the command. "
-        "Please try again later."
+        "An unexpected error occurred while processing "
+        "the command. Please try again later."
     )
 
-    if isinstance(error, app_commands.CommandInvokeError):
+    if isinstance(
+        error,
+        app_commands.CommandInvokeError,
+    ):
         original = error.original
 
-        if isinstance(original, discord.Forbidden):
+        if isinstance(
+            original,
+            discord.Forbidden,
+        ):
             message = (
-                "I do not have the required Discord permissions to "
-                "complete this command."
+                "I do not have the required Discord permissions "
+                "to complete this command."
             )
 
-        elif isinstance(original, discord.HTTPException):
+        elif isinstance(
+            original,
+            discord.HTTPException,
+        ):
             message = (
-                "Discord returned an API error while processing the "
-                "command. Please try again."
+                "Discord returned an API error while processing "
+                "the command. Please try again."
             )
 
     try:
+        error_embed = make_error_embed(
+            "Command Error",
+            message,
+        )
+
         if interaction.response.is_done():
             await interaction.followup.send(
-                embed=make_error_embed(
-                    "Command Error",
-                    message,
-                ),
+                embed=error_embed,
                 ephemeral=True,
             )
         else:
             await interaction.response.send_message(
-                embed=make_error_embed(
-                    "Command Error",
-                    message,
-                ),
+                embed=error_embed,
                 ephemeral=True,
             )
 
@@ -881,13 +982,10 @@ async def on_app_command_error(
 
 
 # ============================================================
-# Startup
+# Startup validation
 # ============================================================
 
 def validate_configuration() -> bool:
-    """
-    Validate required configuration before starting the bot.
-    """
     if not DISCORD_TOKEN:
         logger.critical(
             "DISCORD_TOKEN is missing. "
@@ -895,20 +993,44 @@ def validate_configuration() -> bool:
         )
         return False
 
-    if GUILD_ID_RAW and GUILD_ID is None:
-        logger.warning("GUILD_ID is not a valid integer.")
+    if GUILD_ID is None and os.getenv(
+        "GUILD_ID",
+        "",
+    ).strip():
+        logger.warning(
+            "GUILD_ID is not a valid integer."
+        )
 
-    if TICKET_CATEGORY_ID_RAW and TICKET_CATEGORY_ID is None:
-        logger.warning("TICKET_CATEGORY_ID is not a valid integer.")
+    if TICKET_CATEGORY_ID is None and os.getenv(
+        "TICKET_CATEGORY_ID",
+        "",
+    ).strip():
+        logger.warning(
+            "TICKET_CATEGORY_ID is not a valid integer."
+        )
 
-    if STAFF_ROLE_ID_RAW and STAFF_ROLE_ID is None:
-        logger.warning("STAFF_ROLE_ID is not a valid integer.")
+    if STAFF_ROLE_ID is None and os.getenv(
+        "STAFF_ROLE_ID",
+        "",
+    ).strip():
+        logger.warning(
+            "STAFF_ROLE_ID is not a valid integer."
+        )
 
-    if SERVER_INFO_CHANNEL_ID_RAW and SERVER_INFO_CHANNEL_ID is None:
-        logger.warning("SERVER_INFO_CHANNEL_ID is not a valid integer.")
+    if SERVER_INFO_CHANNEL_ID is None and os.getenv(
+        "SERVER_INFO_CHANNEL_ID",
+        "",
+    ).strip():
+        logger.warning(
+            "SERVER_INFO_CHANNEL_ID is not a valid integer."
+        )
 
     return True
 
+
+# ============================================================
+# Run bot
+# ============================================================
 
 if __name__ == "__main__":
     if not validate_configuration():
@@ -923,12 +1045,14 @@ if __name__ == "__main__":
     except discord.LoginFailure:
         logger.critical(
             "Discord login failed. The bot token may be invalid. "
-            "If the token was previously exposed, regenerate it in "
-            "the Discord Developer Portal."
+            "If the token was previously exposed, regenerate it "
+            "in the Discord Developer Portal."
         )
 
     except KeyboardInterrupt:
         logger.info("Bot stopped by user.")
 
     except Exception:
-        logger.exception("Fatal bot error.")
+        logger.exception(
+            "Fatal bot error."
+        )
