@@ -16,7 +16,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DISCORD_TOKEN = os.getenv("MTUzOTM5ODk4NjgwMzQ0OTg1Ng.GWmNqk.09N63dRw15TJjrZwmpJqb8ru_mFehuTlcxR8ec", "").strip()
+# IMPORTANT:
+# The actual bot token goes in .env, NOT in this file.
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN", "").strip()
 
 
 def parse_id(value: str) -> Optional[int]:
@@ -29,19 +31,21 @@ def parse_id(value: str) -> Optional[int]:
         return None
 
 
-GUILD_ID = parse_id(os.getenv("1538069562522603571", "").strip())
+GUILD_ID = parse_id(
+    os.getenv("1538069562522603571", "").strip()
+)
+
 TICKET_CATEGORY_ID = parse_id(
-    os.getenv("1539430707783274628", "").strip()
+    os.getenv("TICKET_CATEGORY_ID", "").strip()
 )
+
 STAFF_ROLE_ID = parse_id(
-    os.getenv("1538069562631921681", "").strip()
+    os.getenv("STAFF_ROLE_ID", "").strip()
 )
+
 SERVER_INFO_CHANNEL_ID = parse_id(
-    os.getenv("1538069563717976085", "").strip()
-)
-
-
-# ============================================================
+    os.getenv("SERVER_INFO_CHANNEL_ID", "").strip()
+)========
 # Logging
 # ============================================================
 
